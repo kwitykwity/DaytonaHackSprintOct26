@@ -31,11 +31,19 @@ const NON_KEYWORDS = new Set([
   "think", "remember", "tell", "story", "happen", "happened", "happens",
 ]);
 
+// Possessives and contractions ("puppy's", "kids'", "didn't") read oddly as
+// a word to practice, so skip anything with an apostrophe.
+const hasApostrophe = (w: string) => w.includes("'");
+
 // Simplified practice-word pick: the first meaningful word of the question,
-// e.g. "What did the puppy find?" -> "puppy".
+// e.g. "What did the puppy find?" -> "puppy",
+// "What was the puppy's adventure?" -> "adventure".
 export function extractPracticeWord(question: string): string | null {
-  const words = question.toLowerCase().match(/[a-z']+/g) ?? [];
-  return words.find((w) => w.length >= 3 && !NON_KEYWORDS.has(w)) ?? null;
+  // Curly apostrophes (from the LLM) count as apostrophes.
+  const words = question.toLowerCase().replace(/[‘’]/g, "'").match(/[a-z']+/g) ?? [];
+  return (
+    words.find((w) => w.length >= 3 && !NON_KEYWORDS.has(w) && !hasApostrophe(w)) ?? null
+  );
 }
 
 type ModalPhase =
