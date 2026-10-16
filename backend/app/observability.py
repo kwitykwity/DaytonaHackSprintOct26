@@ -8,6 +8,9 @@ and ARIZE_API_KEY are set, so local setups without Arize keep working.
 import logging
 import os
 from contextlib import contextmanager
+from contextvars import ContextVar
+
+from opentelemetry import trace
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +47,32 @@ def setup_tracing() -> bool:
 
     logger.info("Arize tracing on")
     return True
+
+
+# The request's top-level span (FastAPI's own "POST /api/..." span), so an
+# endpoint can label it with a readable input and output for the trace list.
+_request_span: ContextVar = ContextVar("request_span", default=None)
+
+
+async def label_request_span(request, call_next):
+    """HTTP middleware: mark each request's root span as a CHAIN step."""
+    span = trace.get_current_span()
+    if _tracer is not None and span.is_recording():
+        span.set_attribute("openinference.span.kind", "CHAIN")
+        span.set_attribute("input.value", f"{request.method} {request.url.path}")
+        _request_span.set(span)
+    return await call_next(request)
+
+
+def record_io(input_value=None, output_value=None):
+    """Set the Input / Output Arize shows for the current request."""
+    span = _request_span.get()
+    if span is None or not span.is_recording():
+        return
+    if input_value is not None:
+        span.set_attribute("input.value", str(input_value)[:4000])
+    if output_value is not None:
+        span.set_attribute("output.value", str(output_value)[:4000])
 
 
 @contextmanager

@@ -2,6 +2,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from app.models.image import ImageRequest, ImageResponse
 from app.services.image_service import generate_image
+from app.observability import record_io
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ async def create_image(request: ImageRequest):
 
     try:
         image_url = await generate_image(request.prompt)
+        record_io(request.prompt, f"Illustration generated ({len(image_url) * 3 // 4 // 1024} KB)")
         logger.info("Image generation successful")
         return ImageResponse(image_url=image_url)
     except TimeoutError as e:

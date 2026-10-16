@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from elevenlabs.core.api_error import ApiError
 from app.models.audio import AudioRequest, AudioResponse
 from app.services.audio_service import generate_narration
+from app.observability import record_io
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ async def create_audio(request: AudioRequest):
             request.text, voice_id=request.voice_id
         )
         logger.info("Narration generation successful")
+        record_io(request.text, f"Narration with {len(word_timings or [])} timed words")
         return AudioResponse(audio_url=audio_url, word_timings=word_timings)
     except TimeoutError as e:
         logger.error(f"Narration generation timeout: {e}")

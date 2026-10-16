@@ -2,6 +2,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from app.models.scene import StoryRequest, SceneResponse
 from app.services.scene_service import split_story_into_scenes
+from app.observability import record_io
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,11 @@ async def create_scenes(request: StoryRequest):
 
     try:
         scenes = await split_story_into_scenes(request.story, content_level=request.content_level)
+        record_io(
+            request.story,
+            f"Blocked: {scenes.block_reason}" if scenes.blocked
+            else "\n".join(f"{i + 1}. {s.text}" for i, s in enumerate(scenes.scenes)),
+        )
         if scenes.blocked:
             # Not an error: the story was intentionally withheld by the
             # content-safety guardrail. Return 200 with the blocked flag so the

@@ -22,7 +22,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
-from app.observability import setup_tracing
+from app.observability import label_request_span, setup_tracing
 
 # Before the routers import their services, so every LLM client is traced.
 setup_tracing()
@@ -58,6 +58,9 @@ def get_cors_origins() -> list[str]:
 
 
 cors_origins = get_cors_origins()
+
+# Labels each request's trace in Arize (a no-op when tracing is off).
+app.middleware("http")(label_request_span)
 
 app.add_middleware(
     CORSMiddleware,

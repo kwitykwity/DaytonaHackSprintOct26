@@ -5,7 +5,7 @@ Tracks reading sessions and personalizes experience
 from fastapi import APIRouter, HTTPException
 from app.models.reader import ReaderSessionRequest, ReaderSessionResponse, PreviousSession
 from app.db.surreal_client import create_or_update_reader, health_check
-from app.observability import memory_span
+from app.observability import memory_span, record_io
 
 router = APIRouter(prefix="/api", tags=["readers"])
 
@@ -44,11 +44,16 @@ async def track_reader_session(request: ReaderSessionRequest):
                 story_snippet=request.story_snippet,
                 practice_word=request.practice_word
             )
+            previous = result["previous_session"] or {}
             if span is not None:
-                previous = result["previous_session"] or {}
                 span.set_attribute("memory.is_returning", result["is_returning"])
                 span.set_attribute("memory.reader_id", result["reader_id"])
                 span.set_attribute("output.value", str(previous))
+            record_io(
+                f"Reader: {request.name}",
+                (f"Returning reader. Remembered: {previous}" if result["is_returning"]
+                 else "New reader created"),
+            )
 
         # Convert to response model
         response = ReaderSessionResponse(
