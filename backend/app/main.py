@@ -22,6 +22,11 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
+from app.observability import setup_tracing
+
+# Before the routers import their services, so every LLM client is traced.
+setup_tracing()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.scenes import router as scenes_router

@@ -5,6 +5,7 @@ Tracks reading sessions and personalizes experience
 from fastapi import APIRouter, HTTPException
 from app.models.reader import ReaderSessionRequest, ReaderSessionResponse, PreviousSession
 from app.db.surreal_client import create_or_update_reader, health_check
+from app.observability import memory_span
 
 router = APIRouter(prefix="/api", tags=["readers"])
 
@@ -28,12 +29,26 @@ async def track_reader_session(request: ReaderSessionRequest):
                 detail="SurrealDB is not available. Please check database connection."
             )
 
-        # Create or update reader
-        result = await create_or_update_reader(
-            name=request.name,
-            story_snippet=request.story_snippet,
-            practice_word=request.practice_word
-        )
+        # Create or update reader, traced in Arize so each memory lookup and
+        # save shows up next to the story's LLM calls
+        with memory_span(
+            "memory_owl.reader_session",
+            **{
+                "input.value": request.name,
+                "memory.story_saved": bool(request.story_snippet),
+                "memory.practice_word": request.practice_word,
+            },
+        ) as span:
+            result = await create_or_update_reader(
+                name=request.name,
+                story_snippet=request.story_snippet,
+                practice_word=request.practice_word
+            )
+            if span is not None:
+                previous = result["previous_session"] or {}
+                span.set_attribute("memory.is_returning", result["is_returning"])
+                span.set_attribute("memory.reader_id", result["reader_id"])
+                span.set_attribute("output.value", str(previous))
 
         # Convert to response model
         response = ReaderSessionResponse(
