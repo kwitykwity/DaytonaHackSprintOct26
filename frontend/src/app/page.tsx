@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
 import StoryGenerator from "./components/StoryGenerator";
@@ -9,9 +9,31 @@ import ForWhom from "./components/ForWhom";
 import DemoPlayer from "./components/DemoPlayer";
 import StatsSection from "./components/StatsSection";
 import Footer from "./components/Footer";
+import NameModal from "./components/NameModal";
+import { clearReader, getReaderName } from "./lib/reader";
+
+// Detects hydration without a setState-in-effect; localStorage is client-only.
+const emptySubscribe = () => () => {};
 
 export default function Home() {
   const storyGeneratorRef = useRef<HTMLDivElement | null>(null);
+  const hydrated = useSyncExternalStore(emptySubscribe, () => true, () => false);
+  // Set once the modal is submitted, so it closes without re-reading storage.
+  const [submittedName, setSubmittedName] = useState<string | null>(null);
+  const showNameModal = hydrated && !submittedName && !getReaderName();
+
+  // Dev only: run narrateMeClearReader() in the console to see the modal again.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    const w = window as unknown as { narrateMeClearReader?: () => void };
+    w.narrateMeClearReader = () => {
+      clearReader();
+      window.location.reload();
+    };
+    return () => {
+      delete w.narrateMeClearReader;
+    };
+  }, []);
 
   const scrollToStoryGenerator = () => {
     if (storyGeneratorRef.current) {
@@ -29,6 +51,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-surface-base text-ink-dark antialiased">
+      {/* First-visit name prompt so the owl can remember the reader */}
+      <NameModal open={showNameModal} onDone={setSubmittedName} />
+
       {/* Fixed Navigation Bar */}
       <Header />
 
