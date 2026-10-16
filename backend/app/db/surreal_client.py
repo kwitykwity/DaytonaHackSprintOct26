@@ -3,6 +3,7 @@ SurrealDB client for NarrateMe
 Manages connection and basic operations for reader memory feature
 """
 import os
+from pathlib import Path
 from typing import Optional
 from surrealdb import AsyncSurreal
 from datetime import datetime
@@ -31,11 +32,18 @@ async def init_db() -> AsyncSurreal:
     namespace = os.getenv("SURREAL_NS", "narrateme")
     database = os.getenv("SURREAL_DB", "production")
 
+    # A relative surrealkv:// path is relative to backend/, whatever the cwd.
+    if url.startswith("surrealkv://") and not os.path.isabs(url[len("surrealkv://"):]):
+        backend_dir = Path(__file__).resolve().parents[2]
+        url = "surrealkv://" + (backend_dir / url[len("surrealkv://"):]).as_posix()
+
     # Create connection
     db = AsyncSurreal(url)
 
-    # Sign in
-    await db.signin({"user": user, "pass": password})
+    # Sign in. Embedded engines (mem://, surrealkv://) run in-process with no
+    # users, so signin fails there; they let the backend run without Docker.
+    if not url.startswith(("mem://", "memory", "surrealkv://", "file://", "rocksdb://")):
+        await db.signin({"user": user, "pass": password})
 
     # Use namespace and database
     await db.use(namespace, database)
