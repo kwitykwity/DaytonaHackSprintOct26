@@ -6,13 +6,18 @@ import { Fragment, useState, useEffect, useRef, useSyncExternalStore } from "rea
 import OwlAvatar from "./OwlAvatar";
 import EngagementModal from "./EngagementModal";
 import WelcomeMessage from "./WelcomeMessage";
-import {
-  type ReaderData,
-  getStoredReaderName,
-  postReaderSession,
-  storySnippet,
-} from "./readerSession";
+import { type ReaderSession, getReaderName, postReaderSession } from "../lib/reader";
 import { DEFAULT_SETTINGS, loadParentSettings } from "../lib/parentSettings";
+
+// First ~50 characters of the story for the owl's "last time we read about..."
+// line, cut back to a word boundary so it doesn't end mid-word.
+function storySnippet(text: string, maxLength = 50): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (clean.length <= maxLength) return clean;
+  const cut = clean.slice(0, maxLength);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:.!?-]+$/, "");
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -598,11 +603,14 @@ function PresentationContent() {
   // per story and fails silently if the backend is unavailable.
   const saveReaderSession = () => {
     if (sessionSavedRef.current) return;
-    const name = getStoredReaderName();
+    const name = getReaderName()?.trim();
     if (!name) return;
     sessionSavedRef.current = true;
-    const snippet = storySnippet(scenesData.scenes[0].text) || null;
-    postReaderSession(name, snippet, practiceWordRef.current).then((saved) => {
+    postReaderSession({
+      name,
+      story_snippet: storySnippet(scenesData.scenes[0].text),
+      practice_word: practiceWordRef.current,
+    }).then((saved) => {
       if (saved) console.log(`Session saved for ${name}`);
     });
   };
@@ -898,20 +906,22 @@ function PresentationContent() {
 export default function PresentationPage() {
   // Memory Owl: who's reading and what the owl remembers from last time. Stays
   // null when no name was entered, so no greeting is shown.
-  const [readerData, setReaderData] = useState<ReaderData | null>(null);
+  const [readerData, setReaderData] = useState<Omit<ReaderSession, "reader_id"> | null>(null);
 
   useEffect(() => {
-    const name = getStoredReaderName();
+    const name = getReaderName()?.trim();
     if (!name) return;
-    const controller = new AbortController();
-    // No story or word yet: this only looks the reader up, it doesn't overwrite
-    // what was remembered from their last story.
-    postReaderSession(name, null, null, controller.signal).then((data) => {
-      if (controller.signal.aborted) return;
+    let cancelled = false;
+    // Empty story and word: this only looks the reader up; the backend leaves
+    // what it remembered from their last story untouched.
+    postReaderSession({ name, story_snippet: "", practice_word: null }).then((data) => {
+      if (cancelled) return;
       // Backend unavailable: still greet the reader by name.
       setReaderData(data ?? { name, is_returning: false, previous_session: null });
     });
-    return () => controller.abort();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (

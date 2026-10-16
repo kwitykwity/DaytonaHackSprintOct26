@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import OwlAvatar from "./OwlAvatar";
-import type { PreviousSession } from "./readerSession";
+import type { PreviousSession } from "../lib/reader";
 
 interface WelcomeMessageProps {
   name: string;
