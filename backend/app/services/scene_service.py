@@ -153,7 +153,7 @@ Guidelines (for the non-blocked case):
     )
 
 
-async def split_story_into_scenes(story: str, timeout_seconds: int = 60, content_level: str = "moderate") -> SceneResponse:
+async def split_story_into_scenes(story: str, content_level: str = "moderate", timeout_seconds: int = 60) -> SceneResponse:
     logger.info(f"Starting scene splitting. Story length: {len(story)} chars, content_level: {content_level}")
 
     client = get_client()

@@ -4,7 +4,7 @@ Tracks reading sessions and personalizes experience
 """
 from fastapi import APIRouter, HTTPException
 from app.models.reader import ReaderSessionRequest, ReaderSessionResponse, PreviousSession
-from app.db.surreal_client import create_or_update_reader, health_check
+from app.db.surreal_http_client import create_or_update_reader, health_check
 from app.observability import memory_span, record_io
 
 router = APIRouter(prefix="/api", tags=["readers"])
