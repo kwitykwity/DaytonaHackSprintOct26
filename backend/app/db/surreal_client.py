@@ -114,9 +114,10 @@ async def create_or_update_reader(
         if practice_word:
             update_data["last_word"] = practice_word
 
-        # Update the record
+        # Merge, not update: update() replaces the whole record, which erased
+        # the name and made the next lookup create a duplicate reader.
         reader_id = existing_reader["id"]
-        updated = await db.update(reader_id, update_data)
+        await db.merge(reader_id, update_data)
 
         return {
             "reader_id": str(reader_id),
