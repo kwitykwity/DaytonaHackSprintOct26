@@ -16,6 +16,26 @@ interface EngagementPrompt {
 interface EngagementModalProps {
   prompt: EngagementPrompt;
   onDismiss: () => void;
+  // Memory Owl: called with the practice word when a comprehension check is
+  // finished, just before onDismiss.
+  onPracticeWord?: (word: string) => void;
+}
+
+// Question and filler words to skip when picking a practice word.
+const NON_KEYWORDS = new Set([
+  "what", "who", "whom", "whose", "where", "when", "why", "how", "which",
+  "does", "did", "were", "was", "are", "is", "the", "and", "you", "your",
+  "they", "them", "their", "she", "her", "his", "him", "its", "that", "this",
+  "these", "those", "there", "then", "with", "from", "into", "about", "after",
+  "before", "have", "has", "had", "can", "could", "would", "should", "will",
+  "think", "remember", "tell", "story", "happen", "happened", "happens",
+]);
+
+// Simplified practice-word pick: the first meaningful word of the question,
+// e.g. "What did the puppy find?" -> "puppy".
+export function extractPracticeWord(question: string): string | null {
+  const words = question.toLowerCase().match(/[a-z']+/g) ?? [];
+  return words.find((w) => w.length >= 3 && !NON_KEYWORDS.has(w)) ?? null;
 }
 
 type ModalPhase =
@@ -27,7 +47,21 @@ type ModalPhase =
 
 const MAX_ATTEMPTS = 2;
 
-export default function EngagementModal({ prompt, onDismiss }: EngagementModalProps) {
+export default function EngagementModal({
+  prompt,
+  onDismiss: dismissModal,
+  onPracticeWord,
+}: EngagementModalProps) {
+  // Every exit path goes through here so a finished comprehension check always
+  // reports its practice word first.
+  const onDismiss = useCallback(() => {
+    if (prompt.type === "comprehension_check") {
+      const word = extractPracticeWord(prompt.text);
+      if (word) onPracticeWord?.(word);
+    }
+    dismissModal();
+  }, [prompt.type, prompt.text, onPracticeWord, dismissModal]);
+
   const [phase, setPhase] = useState<ModalPhase>("loading");
   const [attempts, setAttempts] = useState(0);
   const [feedbackMessage, setFeedbackMessage] = useState("");

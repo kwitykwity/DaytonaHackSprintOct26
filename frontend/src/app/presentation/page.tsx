@@ -5,6 +5,13 @@ import Link from "next/link";
 import { Fragment, useState, useEffect, useRef, useSyncExternalStore } from "react";
 import OwlAvatar from "./OwlAvatar";
 import EngagementModal from "./EngagementModal";
+import WelcomeMessage from "./WelcomeMessage";
+import {
+  type ReaderData,
+  getStoredReaderName,
+  postReaderSession,
+  storySnippet,
+} from "./readerSession";
 import { DEFAULT_SETTINGS, loadParentSettings } from "../lib/parentSettings";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -182,6 +189,11 @@ function PresentationContent() {
   const [pendingAdvance, setPendingAdvance] = useState(false);
   // Track which scenes have shown their "before" prompt to avoid re-showing
   const shownBeforePrompts = useRef<Set<number>>(new Set());
+  // Memory Owl: the practice word from the latest comprehension check, and
+  // whether this story's session has been saved. Refs rather than state because
+  // the word is reported and the story can finish in the same tick.
+  const practiceWordRef = useRef<string | null>(null);
+  const sessionSavedRef = useRef(false);
 
   // Check for "before" engagement prompts when scene changes.
   // Pause any playing audio immediately when showing a prompt.
@@ -581,6 +593,20 @@ function PresentationContent() {
     }
   };
 
+  // Memory Owl: once the story is finished, remember it (and the practice word)
+  // for this reader so the owl can bring it up next visit. Saves at most once
+  // per story and fails silently if the backend is unavailable.
+  const saveReaderSession = () => {
+    if (sessionSavedRef.current) return;
+    const name = getStoredReaderName();
+    if (!name) return;
+    sessionSavedRef.current = true;
+    const snippet = storySnippet(scenesData.scenes[0].text) || null;
+    postReaderSession(name, snippet, practiceWordRef.current).then((saved) => {
+      if (saved) console.log(`Session saved for ${name}`);
+    });
+  };
+
   // When a scene's narration finishes, clear the highlight; during read-along
   // When a scene's narration finishes, check for "after" engagement prompts.
   // If there's a prompt, show it and defer auto-advance until dismissed.
@@ -597,6 +623,9 @@ function PresentationContent() {
       }
       return;
     }
+
+    // Last scene's narration done with no prompt after it: story complete.
+    if (currentScene === totalScenes - 1) saveReaderSession();
 
     if (!autoAdvance) return;
     if (currentScene < totalScenes - 1) {
@@ -629,6 +658,11 @@ function PresentationContent() {
   const handlePromptDismiss = () => {
     const engagement = scene?.engagement;
     setShowingPrompt(false);
+
+    // The last scene's "after" prompt is the final step of the story.
+    if (engagement?.timing === "after" && currentScene === totalScenes - 1) {
+      saveReaderSession();
+    }
 
     if (engagement?.timing === "before") {
       // "Before" prompts block audio until dismissed - now play it
@@ -852,6 +886,9 @@ function PresentationContent() {
         <EngagementModal
           prompt={scene.engagement}
           onDismiss={handlePromptDismiss}
+          onPracticeWord={(word) => {
+            practiceWordRef.current = word;
+          }}
         />
       )}
     </div>
@@ -859,6 +896,24 @@ function PresentationContent() {
 }
 
 export default function PresentationPage() {
+  // Memory Owl: who's reading and what the owl remembers from last time. Stays
+  // null when no name was entered, so no greeting is shown.
+  const [readerData, setReaderData] = useState<ReaderData | null>(null);
+
+  useEffect(() => {
+    const name = getStoredReaderName();
+    if (!name) return;
+    const controller = new AbortController();
+    // No story or word yet: this only looks the reader up, it doesn't overwrite
+    // what was remembered from their last story.
+    postReaderSession(name, null, null, controller.signal).then((data) => {
+      if (controller.signal.aborted) return;
+      // Backend unavailable: still greet the reader by name.
+      setReaderData(data ?? { name, is_returning: false, previous_session: null });
+    });
+    return () => controller.abort();
+  }, []);
+
   return (
     <div className="flex flex-col flex-1 items-center bg-zinc-50 dark:bg-black px-4 py-12">
       <div className="text-center mb-8">
@@ -867,6 +922,14 @@ export default function PresentationPage() {
         </h1>
         <p className="text-zinc-600 dark:text-zinc-400">Your illustrated story</p>
       </div>
+
+      {readerData && (
+        <WelcomeMessage
+          name={readerData.name}
+          isReturning={readerData.is_returning}
+          previousSession={readerData.previous_session}
+        />
+      )}
 
       <PresentationContent />
     </div>
