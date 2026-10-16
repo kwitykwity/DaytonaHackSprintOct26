@@ -44,7 +44,6 @@ NarrateMe helps teachers and parents of kids in grades 1–3 turn any plain writ
 |---|---|
 | Erasmo Concepcion | Backend/AI Engineer |
 | Christina Ruiz | AI/Visual Engineer |
-| Bernard Shepard | Audio Engineer |
 | Richard Theard | Frontend/UX Lead |
 
 ---
