@@ -32,6 +32,7 @@ from app.api.owl import router as owl_router
 from app.api.demo import router as demo_router
 from app.api.subscribe import router as subscribe_router
 from app.api.stats import router as stats_router
+from app.routers.readers import router as readers_router
 
 app = FastAPI(
     title="NarrateMe API",
@@ -68,6 +69,7 @@ app.include_router(owl_router)
 app.include_router(demo_router)
 app.include_router(subscribe_router)
 app.include_router(stats_router)
+app.include_router(readers_router)
 
 
 @app.get("/health")
