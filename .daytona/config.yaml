@@ -1,0 +1,115 @@
+# Daytona Workspace Configuration for NarrateMe
+# This ensures all developers have a consistent development environment
+
+name: narrateme
+version: "1.0"
+
+# Development container image
+image: daytona/universal:latest
+
+# Port forwarding for services
+ports:
+  - name: frontend
+    port: 3000
+    protocol: http
+    description: Next.js frontend development server
+  - name: backend
+    port: 8000
+    protocol: http
+    description: FastAPI backend server
+  - name: surrealdb
+    port: 8002
+    protocol: http
+    description: SurrealDB database
+
+# Environment variables (secrets should be set per developer)
+env:
+  # Backend API URL for frontend
+  NEXT_PUBLIC_API_URL: "http://localhost:8000"
+
+  # SurrealDB configuration
+  SURREAL_URL: "http://127.0.0.1:8002"
+  SURREAL_USER: "root"
+  SURREAL_PASS: "root"
+  SURREAL_NS: "narrateme"
+  SURREAL_DB: "production"
+
+  # CORS origins for local development
+  CORS_ORIGINS: "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"
+
+  # Image generation settings
+  IMAGE_QUALITY: "medium"
+  IMAGE_SIZE: "1536x1024"
+
+  # Note: API keys should be set as secrets in Daytona UI
+  # API_KEY: ${ANTHROPIC_API_KEY}
+  # OPENAI_API_KEY: ${OPENAI_API_KEY}
+  # ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
+  # ARIZE_API_KEY: ${ARIZE_API_KEY}
+  # ARIZE_SPACE_KEY: ${ARIZE_SPACE_KEY}
+
+# Startup commands
+tasks:
+  - name: install-backend-deps
+    command: |
+      cd backend
+      python -m venv venv
+      source venv/bin/activate || . venv/Scripts/activate
+      pip install -r requirements.txt
+    description: Install Python backend dependencies
+
+  - name: install-frontend-deps
+    command: |
+      cd frontend
+      npm install
+    description: Install Node.js frontend dependencies
+
+  - name: start-surrealdb
+    command: |
+      surreal start --log trace --user root --pass root memory
+    description: Start SurrealDB in-memory instance
+    background: true
+
+  - name: start-backend
+    command: |
+      cd backend
+      source venv/bin/activate || . venv/Scripts/activate
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    description: Start FastAPI backend server
+    background: true
+
+  - name: start-frontend
+    command: |
+      cd frontend
+      npm run dev
+    description: Start Next.js frontend development server
+    background: true
+
+# Extensions and tools to install
+extensions:
+  - ms-python.python
+  - ms-python.vscode-pylance
+  - dbaeumer.vscode-eslint
+  - esbenp.prettier-vscode
+  - bradlc.vscode-tailwindcss
+
+# Pre-installed tools
+tools:
+  - python3
+  - nodejs
+  - npm
+  - git
+  - curl
+  - jq
+
+# IDE settings
+vscode:
+  settings:
+    python.defaultInterpreterPath: "${workspaceFolder}/backend/venv/bin/python"
+    python.formatting.provider: "black"
+    editor.formatOnSave: true
+    editor.defaultFormatter: "esbenp.prettier-vscode"
+    "[python]":
+      editor.defaultFormatter: "ms-python.python"
+    tailwindCSS.experimental.classRegex:
+      - ["className=\"([^\"]*)\"", "([a-zA-Z0-9\\-:]+)"]
